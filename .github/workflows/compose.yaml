@@ -1,0 +1,120 @@
+# Compose a release line
+#
+# Requires an APP_ID / APP_PRIVATE_KEY repo secrets.
+
+name: Compose release line
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Release line to compose (e.g. v1.1.0)"
+        required: true
+        type: string
+      from_line:
+        description: "Lineage parent line (default: newest line)"
+        required: false
+        type: string
+
+concurrency:
+  group: compose-${{ inputs.release }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: read
+  pull-requests: write
+
+env:
+  BASE_BRANCH: master
+  CONTAINER_RUNTIME: docker
+
+jobs:
+  compose:
+    name: Compose ${{ inputs.release }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: bot
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: muak-os
+          repositories: catalog
+
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ steps.bot.outputs.token }}
+          fetch-depth: 0
+
+      - uses: taiki-e/install-action@just
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compose ${{ inputs.release }}
+        env:
+          RELEASE: ${{ inputs.release }}
+          FROM_LINE: ${{ inputs.from_line }}
+          KOCI_REGISTRY_USERNAME: ${{ github.actor }}
+          KOCI_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          args=(--release "$RELEASE" --from . --auto --set "installer=$RELEASE")
+          if [ -n "$FROM_LINE" ]; then args+=(--from-line "$FROM_LINE"); fi
+          just compose "${args[@]}"
+
+      - name: Open or update release PR
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          RELEASE: ${{ inputs.release }}
+        run: |
+          set -euo pipefail
+
+          branch="catalog/${RELEASE}"
+          git config user.name "Muak Bot[bot]"
+          git config user.email "muak-bot[bot]@users.noreply.github.com"
+          git checkout -B "${branch}"
+
+          git add core overlays extensions
+          if git diff --cached --quiet; then
+            echo "Line ${RELEASE} already matches the composed pins; nothing to commit."
+            exit 0
+          fi
+
+          {
+            printf '## Composed release line `%s`\n\n' "$RELEASE"
+            printf '%s\n' \
+              'Every carried entry was bumped and pinned by `kata compose`, resolved' \
+              'and verified against the registry. Published pins never change and' \
+              'published lines only grow — the diff above is the audit record.' \
+              '' \
+              'Merging publishes nothing by itself: run the **Publish catalog**' \
+              "workflow for \`${RELEASE}\` afterwards." \
+              '' \
+              "Composed by workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > pr-body.md
+
+          git commit -m "chore(catalog): compose release line ${RELEASE}"
+          git push --force origin "${branch}"
+
+          if gh pr view "${branch}" --state open > /dev/null 2>&1; then
+            gh pr edit "${branch}" --title "catalog: compose ${RELEASE}" --body-file pr-body.md
+          else
+            gh pr create --base "$BASE_BRANCH" --head "${branch}" \
+              --title "chore(catalog): compose ${RELEASE}" --body-file pr-body.md
+          fi
+
+      - name: Summary
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          {
+            echo "### Composed release line \`${RELEASE}\`"
+            echo ""
+            echo "Next: review and merge the \`catalog/${RELEASE}\` PR, then dispatch **Publish catalog** with \`${RELEASE}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
