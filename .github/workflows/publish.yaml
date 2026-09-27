@@ -9,6 +9,10 @@ on:
         description: "Release line to publish (e.g. v1.2.3)"
         required: true
         type: string
+      channels:
+        description: "Channel tags to move to this line (e.g. stable or stable,beta)"
+        required: false
+        type: string
 
 concurrency:
   group: publish-${{ inputs.release }}
@@ -40,7 +44,7 @@ jobs:
         env:
           KOCI_REGISTRY_USERNAME: ${{ github.actor }}
           KOCI_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: just publish "${{ inputs.release }}"
+        run: just publish "${{ inputs.release }}" "" "${{ inputs.channels }}"
 
       - name: Summary
         run: |

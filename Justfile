@@ -14,7 +14,7 @@ set positional-arguments
 # Global settings
 
 registry := env_var_or_default("REGISTRY", "ghcr.io/muak-os")
-tools := env_var_or_default("TOOLS", "ghcr.io/muak-os/tools@sha256:74883141d2f857c327a6278a2cd12a5494376b9973bb1c62a025f349f4e2ed91")
+tools := env_var_or_default("TOOLS", "ghcr.io/muak-os/tools@sha256:65c5bff2e5d8879ae8270d7f5958619110e12be44e5607db6d163651920f82ae")
 
 # Container runtime
 
@@ -48,10 +48,12 @@ verify release="":
 
 # Build and push a catalog image for a release line.
 [script]
-publish release kind="":
+publish release kind="" channels="":
     kind_arg=""
+    channels_arg=""
     if [ -n "{{ kind }}" ]; then kind_arg="--kind {{ kind }}"; fi
-    just _kata publish --release "{{ release }}" ${kind_arg}
+    if [ -n "{{ channels }}" ]; then channels_arg="--channel {{ channels }}"; fi
+    just _kata publish --release "{{ release }}" ${kind_arg} ${channels_arg}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Private Helpers
