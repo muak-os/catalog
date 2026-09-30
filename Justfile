@@ -14,7 +14,7 @@ set positional-arguments
 # Global settings
 
 registry := env_var_or_default("REGISTRY", "ghcr.io/muak-os")
-tools := env_var_or_default("TOOLS", "ghcr.io/muak-os/tools@sha256:65c5bff2e5d8879ae8270d7f5958619110e12be44e5607db6d163651920f82ae")
+tools := env_var_or_default("TOOLS", "ghcr.io/muak-os/tools@sha256:ccc11ac2ee7f08591f9114be6f351fbc6a22e5e356b7988e8a9bb3053675e6e6")
 
 # Container runtime
 
@@ -53,6 +53,11 @@ publish release channels="":
     if [ -n "{{ channels }}" ]; then channels_arg="--channel {{ channels }}"; fi
     just _kata publish --release "{{ release }}" ${channels_arg}
 
+# Resolve a registry reference to its manifest digest.
+[script]
+digest image tag:
+    just _koci digest --image "{{ image }}" --tag "{{ tag }}"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Private Helpers
 # ─────────────────────────────────────────────────────────────────────────────
@@ -66,3 +71,11 @@ _kata *args:
         -v "$PWD":/data -w /data \
         {{ tools }} \
         /kata "${@}"
+
+[private]
+[script]
+_koci *args:
+    {{ container_runtime }} run --rm --network=host \
+        -e KOCI_REGISTRY_USERNAME -e KOCI_REGISTRY_PASSWORD \
+        {{ tools }} \
+        /koci "${@}"

@@ -24,6 +24,7 @@ permissions:
 env:
   BASE_BRANCH: master
   MUAK_REPO: muak-os/muak
+  TOOLCHAIN_IMAGE: muak-os/tools
   CONTAINER_RUNTIME: docker
 
 jobs:
@@ -46,15 +47,11 @@ jobs:
 
       - uses: taiki-e/install-action@just
 
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Resolve the last muak release
+      - name: Discover and pin the tools image
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KOCI_REGISTRY_USERNAME: ${{ github.actor }}
+          KOCI_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -64,20 +61,17 @@ jobs:
             echo "::error::No v-semver tag found on ${MUAK_REPO}"
             exit 1
           fi
-          echo "RELEASE=${release}" >> "$GITHUB_ENV"
-          echo "Composing release line ${release} (last muak release)"
 
-      - name: Pin the released tools image
-        run: |
-          set -euo pipefail
-
-          digest="$(docker buildx imagetools inspect "ghcr.io/muak-os/tools:${RELEASE}" \
-            | awk '/^Digest:/{print $2}')"
-          if [[ "${digest}" != sha256:* ]]; then
-            echo "::error::No image digest found for tools:${RELEASE}. Was the release pushed?"
+          digest="$(just digest "ghcr.io/${TOOLCHAIN_IMAGE}" "${release}")"
+          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::No manifest digest found for ${TOOLCHAIN_IMAGE}:${release}. Was the release pushed?"
             exit 1
           fi
+
           sed -i -E "s|ghcr\.io/muak-os/tools@sha256:[0-9a-f]+|ghcr.io/muak-os/tools@${digest}|" Justfile
+          echo "RELEASE=${release}" >> "$GITHUB_ENV"
+          echo "TOOLS_DIGEST=${digest}" >> "$GITHUB_ENV"
+          echo "Composing release line ${release} with tools@${digest}"
 
       - name: Compose the release line
         env:
