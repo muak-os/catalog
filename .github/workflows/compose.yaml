@@ -55,6 +55,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Pin the released tools image
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "ghcr.io/muak-os/tools:${RELEASE}" | awk '/^Digest:/{print $2}')"
+          if [[ "${digest}" != sha256:* ]]; then
+            echo "::error::No image digest found for tools:${RELEASE}. Was the release pushed?"
+            exit 1
+          fi
+          sed -i -E "s|ghcr\.io/muak-os/tools@sha256:[0-9a-f]+|ghcr.io/muak-os/tools@${digest}|" Justfile
+
       - name: Compose ${{ inputs.release }}
         env:
           RELEASE: ${{ inputs.release }}
@@ -80,7 +92,7 @@ jobs:
           git config user.email "muak-bot[bot]@users.noreply.github.com"
           git checkout -B "${branch}"
 
-          git add core overlays extensions
+          git add Justfile core overlays extensions
           if git diff --cached --quiet; then
             echo "Line ${RELEASE} already matches the composed pins; nothing to commit."
             exit 0
@@ -92,6 +104,8 @@ jobs:
               'Every carried entry was bumped and pinned by `kata compose`, resolved' \
               'and verified against the registry. Published pins never change and' \
               'published lines only grow — the diff above is the audit record.' \
+              '' \
+              'The `tools` image pin moved to the released digest.' \
               '' \
               'Merging publishes nothing by itself: run the **Publish catalog**' \
               "workflow for \`${RELEASE}\` afterwards." \
