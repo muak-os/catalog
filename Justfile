@@ -48,12 +48,10 @@ verify release="":
 
 # Build and push a catalog image for a release line.
 [script]
-publish release kind="" channels="":
-    kind_arg=""
+publish release channels="":
     channels_arg=""
-    if [ -n "{{ kind }}" ]; then kind_arg="--kind {{ kind }}"; fi
     if [ -n "{{ channels }}" ]; then channels_arg="--channel {{ channels }}"; fi
-    just _kata publish --release "{{ release }}" ${kind_arg} ${channels_arg}
+    just _kata publish --release "{{ release }}" ${channels_arg}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Private Helpers

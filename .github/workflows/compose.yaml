@@ -7,17 +7,13 @@ name: Compose release line
 on:
   workflow_dispatch:
     inputs:
-      release:
-        description: "Release line to compose (e.g. v1.1.0)"
-        required: true
-        type: string
       from_line:
         description: "Lineage parent line (default: newest line)"
         required: false
         type: string
 
 concurrency:
-  group: compose-${{ inputs.release }}
+  group: compose
   cancel-in-progress: false
 
 permissions:
@@ -27,11 +23,12 @@ permissions:
 
 env:
   BASE_BRANCH: master
+  MUAK_REPO: muak-os/muak
   CONTAINER_RUNTIME: docker
 
 jobs:
   compose:
-    name: Compose ${{ inputs.release }}
+    name: Compose
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v1
@@ -55,35 +52,48 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pin the released tools image
+      - name: Resolve the last muak release
         env:
-          RELEASE: ${{ inputs.release }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          digest="$(docker buildx imagetools inspect "ghcr.io/muak-os/tools:${RELEASE}" | awk '/^Digest:/{print $2}')"
+
+          release="$(gh api "repos/${MUAK_REPO}/tags" --paginate --jq '.[].name' \
+            | awk '/^v[0-9]+\.[0-9]+\.[0-9]+/' | sort -V | tail -1)"
+          if [[ -z "${release}" ]]; then
+            echo "::error::No v-semver tag found on ${MUAK_REPO}"
+            exit 1
+          fi
+          echo "RELEASE=${release}" >> "$GITHUB_ENV"
+          echo "Composing release line ${release} (last muak release)"
+
+      - name: Pin the released tools image
+        run: |
+          set -euo pipefail
+
+          digest="$(docker buildx imagetools inspect "ghcr.io/muak-os/tools:${RELEASE}" \
+            | awk '/^Digest:/{print $2}')"
           if [[ "${digest}" != sha256:* ]]; then
             echo "::error::No image digest found for tools:${RELEASE}. Was the release pushed?"
             exit 1
           fi
           sed -i -E "s|ghcr\.io/muak-os/tools@sha256:[0-9a-f]+|ghcr.io/muak-os/tools@${digest}|" Justfile
 
-      - name: Compose ${{ inputs.release }}
+      - name: Compose the release line
         env:
-          RELEASE: ${{ inputs.release }}
           FROM_LINE: ${{ inputs.from_line }}
           KOCI_REGISTRY_USERNAME: ${{ github.actor }}
           KOCI_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          args=(--release "$RELEASE" --from . --auto --set "installer=$RELEASE")
+          args=(--from . --auto --set "installer=${RELEASE}")
           if [ -n "$FROM_LINE" ]; then args+=(--from-line "$FROM_LINE"); fi
           just compose "${args[@]}"
 
       - name: Open or update release PR
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
-          RELEASE: ${{ inputs.release }}
         run: |
           set -euo pipefail
 
@@ -122,13 +132,3 @@ jobs:
             gh pr create --base "$BASE_BRANCH" --head "${branch}" \
               --title "chore(catalog): compose ${RELEASE}" --body-file pr-body.md
           fi
-
-      - name: Summary
-        env:
-          RELEASE: ${{ inputs.release }}
-        run: |
-          {
-            echo "### Composed release line \`${RELEASE}\`"
-            echo ""
-            echo "Next: review and merge the \`catalog/${RELEASE}\` PR, then dispatch **Publish catalog** with \`${RELEASE}\`."
-          } >> "$GITHUB_STEP_SUMMARY"

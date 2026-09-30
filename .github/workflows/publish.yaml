@@ -44,7 +44,7 @@ jobs:
         env:
           KOCI_REGISTRY_USERNAME: ${{ github.actor }}
           KOCI_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: just publish "${{ inputs.release }}" "" "${{ inputs.channels }}"
+        run: just publish "${{ inputs.release }}" "${{ inputs.channels }}"
 
       - name: Summary
         run: |
