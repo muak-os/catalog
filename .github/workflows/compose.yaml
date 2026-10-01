@@ -81,7 +81,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          args=(--from . --auto --set "installer=${RELEASE}")
+          args=(--auto --set "installer=${RELEASE}")
           if [ -n "$FROM_LINE" ]; then args+=(--from-line "$FROM_LINE"); fi
           just compose "${args[@]}"
 

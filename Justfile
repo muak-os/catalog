@@ -14,7 +14,7 @@ set positional-arguments
 # Global settings
 
 registry := env_var_or_default("REGISTRY", "ghcr.io/muak-os")
-tools := env_var_or_default("TOOLS", "ghcr.io/muak-os/tools@sha256:ccc11ac2ee7f08591f9114be6f351fbc6a22e5e356b7988e8a9bb3053675e6e6")
+tools := env_var_or_default("TOOLS", "ghcr.io/muak-os/tools@sha256:f0904fcbb815109d40bb361c9908f29ec77d3586c1cef8ae0736a5fdf06406c8")
 
 # Container runtime
 
@@ -23,11 +23,6 @@ container_runtime := env_var_or_default("CONTAINER_RUNTIME", "podman")
 # ─────────────────────────────────────────────────────────────────────────────
 # Main Recipes
 # ─────────────────────────────────────────────────────────────────────────────
-
-# Add or update a catalog entry.
-[script]
-add *args:
-    just _kata add "$@"
 
 # Remove an entry from a release line.
 [script]
