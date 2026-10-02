@@ -1,0 +1,16 @@
+api_version = "muak.dev/catalog/overlays/v1"
+release = "v1.0.1-beta"
+
+[[overlays]]
+name = "rpi_5"
+source = "muak-os/sbc-raspberrypi"
+repository = "sbc/raspberrypi-5"
+tag = "v0.1.0"
+digest = "sha256:908fb86cccf5e8988b072664e1e4f511c61fc1b066136926860d5b78414b8822"
+
+[[overlays]]
+name = "rpi_generic"
+source = "muak-os/sbc-raspberrypi"
+repository = "sbc/raspberrypi"
+tag = "v0.1.0"
+digest = "sha256:0d6e878a416ae29ebaf64c6929c58922f83112e999e4ec3dcaa546981f3841ba"
