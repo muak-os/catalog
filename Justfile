@@ -14,7 +14,7 @@ set positional-arguments
 # Global settings
 
 registry := env_var_or_default("REGISTRY", "ghcr.io/muak-os")
-tools := env_var_or_default("TOOLS", "ghcr.io/muak-os/tools@sha256:f0904fcbb815109d40bb361c9908f29ec77d3586c1cef8ae0736a5fdf06406c8")
+toolchain := env_var_or_default("TOOLCHAIN", "ghcr.io/muak-os/toolchain@sha256:aa9208691a4799dc34b42acb9a14aef4d7599d554ecaac1e36c9c76319cbd960")
 
 # Container runtime
 
@@ -64,7 +64,7 @@ _kata *args:
         -e KOCI_REGISTRY_USERNAME -e KOCI_REGISTRY_PASSWORD \
         -e REGISTRY="{{ registry }}" \
         -v "$PWD":/data -w /data \
-        {{ tools }} \
+        {{ toolchain }} \
         /kata "${@}"
 
 [private]
@@ -72,5 +72,5 @@ _kata *args:
 _koci *args:
     {{ container_runtime }} run --rm --network=host \
         -e KOCI_REGISTRY_USERNAME -e KOCI_REGISTRY_PASSWORD \
-        {{ tools }} \
+        {{ toolchain }} \
         /koci "${@}"
