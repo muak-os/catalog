@@ -14,7 +14,7 @@ set positional-arguments
 # Global settings
 
 registry := env_var_or_default("REGISTRY", "ghcr.io/muak-os")
-toolchain := env_var_or_default("TOOLCHAIN", "ghcr.io/muak-os/toolchain@sha256:aa9208691a4799dc34b42acb9a14aef4d7599d554ecaac1e36c9c76319cbd960")
+toolchain := env_var_or_default("TOOLCHAIN", "ghcr.io/muak-os/toolchain@sha256:b5202e06f797ab99a766617238d181fede148fa8f83a15d218b33599752de4fa")
 
 # Container runtime
 
