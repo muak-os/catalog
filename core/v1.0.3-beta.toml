@@ -1,0 +1,20 @@
+api_version = "muak.dev/catalog/core/v1"
+release = "v1.0.3-beta"
+
+[[kernels]]
+source = "muak-os/linux"
+repository = "linux"
+tag = "v7.2.11"
+digest = "sha256:eb1932d807639ae45f01eaa8c2d460917cdec4498ab2070b8851011255f4bf1e"
+
+[stub]
+source = "muak-os/stub"
+repository = "stub"
+tag = "v1.0.1-beta"
+digest = "sha256:18867e230cee9f8c544bf247bfbdfa8efb43c22ab1465e19cd782c1741742edd"
+
+[installer]
+source = "muak-os/muak"
+repository = "installer"
+tag = "v1.0.3-beta"
+digest = "sha256:003298c40f8b5f7400b83935cc208c7f8a0c0e49f709fbdde188ea48a9a8043c"
