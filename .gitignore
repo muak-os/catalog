@@ -16,7 +16,6 @@ target/
 
 !.gitignore
 !.gitattributes
-!.gitkeep
 !LICENSE
 
 !.dockerignore

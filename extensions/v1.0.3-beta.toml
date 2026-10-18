@@ -1,0 +1,9 @@
+api_version = "muak.dev/catalog/extensions/v1"
+release = "v1.0.3-beta"
+
+[[extensions]]
+name = "cloud-hypervisor"
+source = "muak-os/extensions"
+repository = "extensions/cloud-hypervisor"
+tag = "v54.0"
+digest = "sha256:8d432e1d2bae83951702e713f932f84a11621f5dd7faaf1c8458adecd1eaada7"
