@@ -11,6 +11,59 @@ on:
         description: "Lineage parent line (default: newest line)"
         required: false
         type: string
+      open_pr:
+        description: "Open or update a catalog PR"
+        required: false
+        type: boolean
+        default: true
+
+  workflow_call:
+    inputs:
+      release:
+        description: "Release line to compose; empty discovers the latest stable tag"
+        required: false
+        type: string
+        default: ""
+      installer:
+        description: "Optional installer tag; empty uses the release tag"
+        required: false
+        type: string
+        default: ""
+      from_line:
+        description: "Optional lineage parent line"
+        required: false
+        type: string
+        default: ""
+      force:
+        description: "Replace an already-published line"
+        required: false
+        type: boolean
+        default: false
+      auto:
+        description: "Bump unselected entries to their newest version tag"
+        required: false
+        type: boolean
+        default: true
+      open_pr:
+        description: "Open or update a catalog PR"
+        required: false
+        type: boolean
+        default: true
+      artifact:
+        description: "Optional artifact name for the composed documents"
+        required: false
+        type: string
+        default: ""
+      toolchain:
+        description: "Optional toolchain image reference"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      APP_ID:
+        required: false
+      APP_PRIVATE_KEY:
+        required: false
 
 concurrency:
   group: compose
@@ -34,6 +87,7 @@ jobs:
     steps:
       - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547
         id: bot
+        if: inputs.open_pr
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -42,52 +96,90 @@ jobs:
 
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          token: ${{ steps.bot.outputs.token }}
+          repository: muak-os/catalog
+          token: ${{ steps.bot.outputs.token || github.token }}
           fetch-depth: 0
 
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283
         with:
           tool: just@1.58.0
 
-      - name: Discover and pin the toolchain image
+      - name: Resolve release and toolchain
         env:
+          RELEASE_INPUT: ${{ inputs.release }}
+          TOOLCHAIN_INPUT: ${{ inputs.toolchain }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KOCI_REGISTRY_USERNAME: ${{ github.actor }}
           KOCI_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          release="$(gh api "repos/${MUAK_REPO}/tags" --paginate --jq '.[].name' \
-            | awk '/^v[0-9]+\.[0-9]+\.[0-9]+/' | sort -V | tail -1)"
-          if [[ -z "${release}" ]]; then
-            echo "::error::No v-semver tag found on ${MUAK_REPO}"
-            exit 1
+          release="$RELEASE_INPUT"
+          if [ -z "$release" ]; then
+            release="$(gh api "repos/${MUAK_REPO}/tags" --paginate --jq '.[].name' \
+              | awk '/^v[0-9]+\.[0-9]+\.[0-9]+/' | sort -V | tail -1)"
+            if [ -z "$release" ]; then
+              echo "::error::No v-semver tag found on ${MUAK_REPO}"
+              exit 1
+            fi
           fi
 
-          digest="$(just digest "ghcr.io/${TOOLCHAIN_IMAGE}" "${release}")"
-          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "::error::No manifest digest found for ${TOOLCHAIN_IMAGE}:${release}. Was the release pushed?"
-            exit 1
+          toolchain="$TOOLCHAIN_INPUT"
+          if [ -z "$toolchain" ]; then
+            digest="$(just digest "ghcr.io/${TOOLCHAIN_IMAGE}" "$release")"
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::No manifest digest found for ${TOOLCHAIN_IMAGE}:${release}. Was the release pushed?"
+              exit 1
+            fi
+            toolchain="ghcr.io/muak-os/toolchain@${digest}"
+            sed -i -E "s|ghcr\.io/muak-os/toolchain@sha256:[0-9a-f]+|${toolchain}|" Justfile
           fi
 
-          sed -i -E "s|ghcr\.io/muak-os/toolchain@sha256:[0-9a-f]+|ghcr.io/muak-os/toolchain@${digest}|" Justfile
-          echo "RELEASE=${release}" >> "$GITHUB_ENV"
-          echo "TOOLCHAIN_DIGEST=${digest}" >> "$GITHUB_ENV"
-          echo "Composing release line ${release} with toolchain@${digest}"
+          printf 'RELEASE=%s\nTOOLCHAIN=%s\n' "$release" "$toolchain" >> "$GITHUB_ENV"
+          printf 'Composing release line %s with %s\n' "$release" "$toolchain"
 
       - name: Compose the release line
         env:
           FROM_LINE: ${{ inputs.from_line }}
+          INSTALLER: ${{ inputs.installer }}
+          AUTO: ${{ inputs.auto }}
+          FORCE: ${{ inputs.force }}
           KOCI_REGISTRY_USERNAME: ${{ github.actor }}
           KOCI_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          args=(--release "${RELEASE}" --auto --set "installer=${RELEASE}")
-          if [ -n "$FROM_LINE" ]; then args+=(--from-line "$FROM_LINE"); fi
+          args=(--release "$RELEASE")
+          if [ "${AUTO:-true}" = "true" ]; then
+            args+=(--auto)
+          fi
+          if [ -n "$INSTALLER" ]; then
+            args+=(--set "installer=muak-os/muak@installer@$INSTALLER")
+          else
+            args+=(--set "installer=$RELEASE")
+          fi
+          if [ -n "$FROM_LINE" ]; then
+            args+=(--from-line "$FROM_LINE")
+          fi
+          if [ "$FORCE" = "true" ]; then
+            args+=(--force)
+          fi
+
           just compose "${args[@]}"
 
+      - name: Upload composed catalog
+        if: inputs.artifact != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ${{ inputs.artifact }}
+          path: |
+            core/${{ inputs.release }}.toml
+            overlays/${{ inputs.release }}.toml
+            extensions/${{ inputs.release }}.toml
+          if-no-files-found: error
+
       - name: Open or update release PR
+        if: inputs.open_pr
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
         run: |
