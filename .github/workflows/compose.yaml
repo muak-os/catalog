@@ -176,6 +176,7 @@ jobs:
             overlays/${{ inputs.release }}.toml
             extensions/${{ inputs.release }}.toml
           if-no-files-found: error
+          overwrite: true
 
       - name: Open or update release PR
         if: inputs.open_pr
