@@ -30,9 +30,9 @@ env:
 jobs:
   compose:
     name: Compose
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/create-github-app-token@v1
+      - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547
         id: bot
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -40,12 +40,14 @@ jobs:
           owner: muak-os
           repositories: catalog
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           token: ${{ steps.bot.outputs.token }}
           fetch-depth: 0
 
-      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283
+        with:
+          tool: just@1.58.0
 
       - name: Discover and pin the toolchain image
         env:
@@ -81,7 +83,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          args=(--auto --set "installer=${RELEASE}")
+          args=(--release "${RELEASE}" --auto --set "installer=${RELEASE}")
           if [ -n "$FROM_LINE" ]; then args+=(--from-line "$FROM_LINE"); fi
           just compose "${args[@]}"
 
